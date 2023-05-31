@@ -40,9 +40,8 @@ const mainFunction  = async () => {
     for(const imgText of imageTextConstants) {
       const promise = getCatImageWithText(imgText);
       promises.push(promise);
-      results = await Promise.allSettled(promises);
     };
-
+    results = await Promise.allSettled(promises);
     //check for any error when fecthing images beacuse api call is happening at the same time which increases the performance 
     for(const result of results){
       if(result?.status ===  'rejected'){
