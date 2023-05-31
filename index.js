@@ -1,7 +1,7 @@
 //package imports
 const { writeFile } = require("fs");
 const { join } = require("path");
-const request = require("request");
+const request = require("request");// not used due to depecreation
 const mergeImg = require("merge-img");
 const argv = require("minimist")(process.argv.slice(2));
 const axios = require("axios");
