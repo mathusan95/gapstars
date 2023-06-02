@@ -104,7 +104,7 @@ const mainFunction = async (imageHeight, imageWidth, imageSize, imageColor) => {
       }
 
       //save the file inside the directory
-      await fs.writeFile(`${fileDirectory}/cat-card_${v4()}`,bufferdImg,"binary");
+      await fs.writeFile(`${fileDirectory}/cat-card_${v4()}.jpg`,bufferdImg,"binary");
     } else {
       throw new Error("invalid Input Exception");
     }
