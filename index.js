@@ -1,82 +1,117 @@
 //package imports
-const { writeFile } = require("fs");
+const fs = require("fs").promises;
 const { join } = require("path");
-const request = require("request");// not used due to depecreation
 const mergeImg = require("merge-img");
 const argv = require("minimist")(process.argv.slice(2));
 const axios = require("axios");
+const { v4 } = require("uuid");
+const Validator = require("validatorjs");
+const moment = require("moment");
 
 //file imports
-const imageTextConstants = require("./utils/imageTextEnum");
-const baseUrl = require("./utils/config");
+const { greetings, baseUrl, rules } = require("./utils/config");
 
-const { width = 400, height = 500, color = "Pink", size = 100 } = argv;
+let { width = 400, height = 500, color = "Pink", size = 100 } = argv;
 
-//request package has been depreciated so its not adviseable to continue using that package ,so instead i have used another http client (Axios)
-const getCatImageWithText = async (text) => {
+//@param text:string
+const getCatImageWithText = async (
+  text,
+  imageHeight,
+  imageWidth,
+  imageSize
+) => {
   const url = `${baseUrl}/cat/says/${text}`;
   const options = {
     url,
     method: "GET",
     params: {
-      width: width,
-      height: height,
+      width: imageWidth,
+      height: imageHeight,
       color: color,
-      s: size,
+      s: imageSize,
     },
     responseType: "arraybuffer",
   };
   return await axios(options);
 };
 
-const mainFunction = async () => {
-  // try catch is the modern way of error handling in js
+//@param:ImageHeight:number
+//@param:imageWidth:number
+//@param:imageSize:number
+//@param:imageColor:string
+const mainFunction = async (imageHeight, imageWidth, imageSize, imageColor) => {
   try {
-    let results = [];
-    let promises = [];
-    //fetch images from the api and (for loop is faster and works better with promises)
-    for (const imgText of imageTextConstants) {
-      const promise = getCatImageWithText(imgText);
-      promises.push(promise);
-    }
-    results = await Promise.allSettled(promises);
-    //check for any error when fecthing images beacuse api call is happening at the same time which increases the performance
-    for (const result of results) {
-      if (result?.status === "rejected") {
-        let error = new Error();
-        error.message = "error when fetching image";
-        throw error;
-      }
-    }
+    const validation = new Validator(
+      {
+        height: imageHeight,
+        width: imageWidth,
+        size: imageSize,
+        color: imageColor,
+      },
+      rules
+    );
+    //validate the input arguments
+    if (validation.passes()) {
+      //fetch images from the api
+      const promises = greetings.map((imgText) => {
+        return getCatImageWithText(
+          imgText,
+          imageHeight,
+          imageWidth,
+          imageSize,
+          imageColor
+        );
+      });
+      const results = await Promise.allSettled(promises);
+      const errors = results.filter((data) => data.status === "rejected");
 
-    //merge the results from the api
-    const imgArray = results.map((val, index) => {
-      if (index == 0) {
-        return { src: Buffer.from(val?.value?.data, "binary"), x: 0, y: 0 };
-      } else {
-        return { src: Buffer.from(val?.value?.data, "binary"), x: width, y: 0 };
+      if (errors.length > 0) {
+        throw new Error("error when fetching image");
       }
-    });
-    const img = await mergeImg(imgArray);
-    const bufferdImg = img.getBuffer("image/jpeg", (err, buffer) => {
-      if (err) {
-        throw err;
-      } else {
-        return buffer;
+      //merge the results from the api
+      const imgArray = results.map((val, index) => {
+        if (index == 0) {
+          return {
+            src: Buffer.from(val?.value?.data, "binary"),
+            x: 0,
+            y: 0,
+          };
+        } else {
+          return {
+            src: Buffer.from(val?.value?.data, "binary"),
+            x: width,
+            y: 0,
+          };
+        }
+      });
+      const img = await mergeImg(imgArray);
+      const bufferdImg = img.getBuffer("image/jpeg", (err, buffer) => {
+        if (err) {
+          throw err;
+        } else {
+          return buffer;
+        }
+      });
+
+      //directory location with foldername current date
+      const fileDirectory = join(process.cwd(),`${moment(new Date()).format("YYYY-MM-DD")}`);
+      try {
+        //check directory exists
+        await fs.readdir(fileDirectory);
+      } catch (error) {
+        //create new directory
+        await fs.mkdir(fileDirectory);
       }
-    });
-    const fileLocation = join(process.cwd(), `/cat-card.jpg`);
-    writeFile(fileLocation, bufferdImg, "binary", (err) => {
-      if (err) {
-        throw err;
-      }
-      console.log("file has been saved");
-      return;
-    });
+
+      //save the file inside the directory
+      await fs.writeFile(`${fileDirectory}/cat-card_${v4()}`,bufferdImg,"binary");
+    } else {
+      throw new Error("invalid Input Exception");
+    }
   } catch (error) {
-    // here we can log the error message using any logging package pinoLogger
+    //TODO log the error
     console.log(error.message, "error>>>");
   }
 };
 
-mainFunction();
+mainFunction(height, width, size, color);
